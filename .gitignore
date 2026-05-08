@@ -1,0 +1,34 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Local env / secrets
+.env
+
+# Local IDE / agent config
+.claude/
+.idea/
+.vscode/
+.DS_Store
+
+# Test / cache
+.pytest_cache/
+.ruff_cache/
+
+# DBs (M4 SqliteSaver)
+*.sqlite
+*.sqlite3
+checkpoints.sqlite
+search_cache.sqlite
+usage.sqlite
+thread_meta.sqlite
+feedback.sqlite
+judge.sqlite
+lessons.json
