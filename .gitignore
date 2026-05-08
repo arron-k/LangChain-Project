@@ -25,6 +25,8 @@ wheels/
 # DBs (M4 SqliteSaver)
 *.sqlite
 *.sqlite3
+*.sqlite-shm
+*.sqlite-wal
 checkpoints.sqlite
 search_cache.sqlite
 usage.sqlite

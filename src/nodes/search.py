@@ -33,6 +33,7 @@ def search_node(
             include_domains=cache_opts["include_domains"],
             exclude_domains=cache_opts["exclude_domains"],
             time_range=cache_opts["time_range"],
+            include_images=bool(state.get("vision_enabled", False)),
         )
 
     if cache is not None and bool(state.get("use_cache", True)):

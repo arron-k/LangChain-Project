@@ -11,6 +11,7 @@ from src.nodes.plan import plan_node
 from src.nodes.reflect import reflect_node
 from src.nodes.search import search_node
 from src.nodes.summarize import summarize_node
+from src.nodes.vision import vision_node
 from src.nodes.write import write_node
 from src.state import ResearchState, empty_state
 from src.tools.web_search import SearchFn
@@ -46,6 +47,7 @@ def build_graph(
         "search",
         partial(search_node, search_fn=search_fn, llm=small, cache=search_cache),
     )
+    builder.add_node("vision", partial(vision_node, llm=large))
     builder.add_node("summarize", partial(summarize_node, llm=large))
     if use_critic:
         builder.add_node("critic", partial(critic_node, llm=small))
@@ -54,7 +56,8 @@ def build_graph(
 
     builder.add_edge(START, "plan")
     builder.add_edge("plan", "search")
-    builder.add_edge("search", "summarize")
+    builder.add_edge("search", "vision")
+    builder.add_edge("vision", "summarize")
     if use_critic:
         builder.add_edge("summarize", "critic")
         builder.add_edge("critic", "reflect")

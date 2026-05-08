@@ -133,4 +133,4 @@ def test_stream_emits_one_event_per_node():
     for chunk in graph.stream(_empty("X"), stream_mode="updates"):
         nodes_seen.extend(chunk.keys())
 
-    assert nodes_seen == ["plan", "search", "summarize", "reflect", "write"]
+    assert nodes_seen == ["plan", "search", "vision", "summarize", "reflect", "write"]

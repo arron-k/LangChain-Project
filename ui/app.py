@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
 
+from src.ab_compare import PRESETS, judge_pair, run_one  # noqa: E402
 from src.cache import SearchCache  # noqa: E402
 from src.exporters import markdown_to_docx_bytes, markdown_to_pdf_bytes  # noqa: E402
 from src.feedback import FeedbackStore  # noqa: E402
@@ -158,6 +159,10 @@ with st.sidebar:
     freshness_days = st.slider(L("freshness_days"), 30, 1825, 365, step=30) if freshness_on else 0
     per_agent_models = st.toggle(L("per_agent_models"), value=False, help=L("per_agent_models_help"))
     llm_supervisor = st.toggle(L("llm_supervisor"), value=False, help=L("llm_supervisor_help"))
+    self_correct_writer = st.toggle(L("self_correct_writer"), value=False, help=L("self_correct_writer_help"))
+    cross_reference_check = st.toggle(L("cross_reference"), value=False, help=L("cross_reference_help"))
+    vision_enabled = st.toggle(L("vision"), value=False, help=L("vision_help"))
+    reflexion_enabled = st.toggle(L("reflexion"), value=False, help=L("reflexion_help"))
 
     st.markdown("---")
     st.subheader(L("search_filters"))
@@ -374,6 +379,10 @@ def make_state(topic: str, follow_up: str = "") -> dict:
         freshness_max_age_days=freshness_days,
         per_agent_models=per_agent_models,
         llm_supervisor=llm_supervisor,
+        self_correct_writer=self_correct_writer,
+        cross_reference_check=cross_reference_check,
+        vision_enabled=vision_enabled,
+        reflexion_enabled=reflexion_enabled,
         follow_up=follow_up,
     )
 
@@ -497,6 +506,58 @@ def render_state(out: dict):
                 )
                 st.success(L("feedback_thanks"))
 
+    image_findings = out.get("image_findings") or []
+    if image_findings:
+        st.subheader(L("image_findings"))
+        for f in image_findings[:5]:
+            cols = st.columns([1, 3])
+            with cols[0]:
+                try:
+                    st.image(f.get("url", ""), width="stretch")
+                except Exception:
+                    st.caption(f.get("url", ""))
+            with cols[1]:
+                st.caption(f.get("question", ""))
+                st.markdown(f.get("description", ""))
+
+    rmemo = out.get("reflexion_memo") or {}
+    if rmemo and (rmemo.get("strategy_for_next_time") or rmemo.get("what_worked")):
+        st.subheader(L("reflexion_memo"))
+        rcols = st.columns(3)
+        with rcols[0]:
+            st.markdown(f"**✅ {L('what_worked')}**")
+            for s in rmemo.get("what_worked", [])[:3]:
+                st.markdown(f"- {s}")
+        with rcols[1]:
+            st.markdown(f"**🔧 {L('what_to_improve')}**")
+            for s in rmemo.get("what_to_improve", [])[:3]:
+                st.markdown(f"- {s}")
+        with rcols[2]:
+            st.markdown(f"**🎯 {L('strategy_next')}**")
+            st.caption(rmemo.get("strategy_for_next_time", ""))
+
+    cv = out.get("claim_verification") or {}
+    if cv and cv.get("claims"):
+        st.subheader(L("verification_panel"))
+        if cv.get("summary"):
+            st.caption(cv["summary"])
+        rows = []
+        confidences = []
+        for c in cv["claims"]:
+            risk = c.get("risk", "ok")
+            badge = {"ok": "🟢", "single-source": "🟡", "unsupported": "🔴", "conflicting": "⚠️"}.get(risk, "📄")
+            conf = float(c.get("confidence", 5.0))
+            confidences.append(conf)
+            rows.append({
+                L("claim"): c.get("text", ""),
+                L("supported_by"): ", ".join(f"[{n}]" for n in (c.get("supported_by") or [])) or "—",
+                L("risk"): f"{badge} {risk}",
+                L("confidence"): f"{conf:.1f}",
+            })
+        avg_conf = sum(confidences) / len(confidences) if confidences else 0.0
+        st.metric(L("avg_confidence"), f"{avg_conf:.1f} / 10")
+        st.dataframe(rows, use_container_width=True, hide_index=True)
+
     with st.expander(L("reflection_trace")):
         st.code(out.get("reflection", ""), language="json")
     with st.expander(L("raw_state")):
@@ -616,7 +677,7 @@ def stream_run(initial):
     return final
 
 
-tab_run, tab_resume = st.tabs([L("tab_run"), L("tab_resume")])
+tab_run, tab_resume, tab_ab = st.tabs([L("tab_run"), L("tab_resume"), L("tab_ab")])
 
 with tab_run:
     topic = st.text_input(L("research_topic"), value="LangGraph reflection patterns")
@@ -661,3 +722,107 @@ with tab_resume:
             st.info(L("no_state"))
     except Exception as e:
         st.warning(f"Could not load: {e}")
+
+
+with tab_ab:
+    st.caption(
+        "두 옵션 조합을 같은 토픽으로 동시에 실행하고 LLM-judge가 승자를 선언합니다."
+    )
+    ab_topic = st.text_input(L("ab_topic"), value="LangGraph reflection patterns", key="ab_topic_input")
+
+    preset_keys = list(PRESETS.keys())
+    col_a, col_b = st.columns(2)
+    with col_a:
+        preset_a = st.selectbox(
+            L("ab_preset_a"),
+            options=preset_keys,
+            index=0,
+            format_func=lambda k: PRESETS[k]["label"],
+            key="preset_a",
+        )
+        st.caption(PRESETS[preset_a]["description"])
+    with col_b:
+        preset_b = st.selectbox(
+            L("ab_preset_b"),
+            options=preset_keys,
+            index=min(4, len(preset_keys) - 1),
+            format_func=lambda k: PRESETS[k]["label"],
+            key="preset_b",
+        )
+        st.caption(PRESETS[preset_b]["description"])
+
+    if st.button(L("ab_run"), type="primary", use_container_width=True):
+        if ab_topic.strip() and not use_fake:
+            shared = dict(
+                checkpointer=saver,
+                search_cache=search_cache if use_search_cache else None,
+            )
+
+            with st.status(L("ab_running_a"), expanded=False):
+                try:
+                    state_a = run_one(
+                        ab_topic,
+                        {**PRESETS[preset_a]["options"], "language": language},
+                        **shared,
+                    )
+                except Exception as e:
+                    st.error(_explain_error(e))
+                    state_a = {}
+
+            with st.status(L("ab_running_b"), expanded=False):
+                try:
+                    state_b = run_one(
+                        ab_topic,
+                        {**PRESETS[preset_b]["options"], "language": language},
+                        **shared,
+                    )
+                except Exception as e:
+                    st.error(_explain_error(e))
+                    state_b = {}
+
+            with st.spinner(L("ab_judging")):
+                verdict = judge_pair(ab_topic, state_a, state_b, language=language)
+
+            winner = verdict["winner"]
+            winner_label = (
+                "🅰️ A" if winner == "A" else "🅱️ B" if winner == "B" else f"🤝 {L('ab_tie')}"
+            )
+            top1, top2, top3 = st.columns(3)
+            top1.metric(L("ab_winner"), winner_label)
+            top2.metric(
+                f"A {L('judge_overall')}",
+                f"{verdict['score_a']['overall']:.1f}" if verdict["score_a"] else "—",
+            )
+            top3.metric(
+                f"B {L('judge_overall')}",
+                f"{verdict['score_b']['overall']:.1f}" if verdict["score_b"] else "—",
+            )
+            st.caption(f"{L('ab_diff')}: {verdict['diff']:+.2f}")
+
+            ca, cb = st.columns(2)
+            with ca:
+                st.markdown(f"#### 🅰️ {PRESETS[preset_a]['label']}")
+                if verdict["score_a"]:
+                    s = verdict["score_a"]
+                    st.write(
+                        f"Acc {s['accuracy']:.1f} · Cite {s['citations']:.1f} · "
+                        f"Struct {s['structure']:.1f} · Read {s['readability']:.1f} · "
+                        f"Length {s['length_fit']:.1f}"
+                    )
+                    st.caption(s.get("comment", ""))
+                with st.expander("📄 Report A"):
+                    st.markdown(state_a.get("final_report", "_(empty)_"))
+            with cb:
+                st.markdown(f"#### 🅱️ {PRESETS[preset_b]['label']}")
+                if verdict["score_b"]:
+                    s = verdict["score_b"]
+                    st.write(
+                        f"Acc {s['accuracy']:.1f} · Cite {s['citations']:.1f} · "
+                        f"Struct {s['structure']:.1f} · Read {s['readability']:.1f} · "
+                        f"Length {s['length_fit']:.1f}"
+                    )
+                    st.caption(s.get("comment", ""))
+                with st.expander("📄 Report B"):
+                    st.markdown(state_b.get("final_report", "_(empty)_"))
+        elif use_fake:
+            st.warning("A/B 비교는 실 LLM 모드에서만 동작합니다 (사이드바 'Use fake LLM' 끄세요).")

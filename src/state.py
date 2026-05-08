@@ -32,6 +32,14 @@ class ResearchState(TypedDict, total=False):
     freshness_max_age_days: int
     per_agent_models: bool
     llm_supervisor: bool
+    self_correct_writer: bool
+    cross_reference_check: bool
+    writer_feedback: str
+    claim_verification: dict
+    vision_enabled: bool
+    image_findings: list[dict]
+    reflexion_enabled: bool
+    reflexion_memo: dict
     persona: str
     follow_up: str
 
@@ -57,6 +65,10 @@ DEFAULTS = {
     "freshness_max_age_days": 0,
     "per_agent_models": False,
     "llm_supervisor": False,
+    "self_correct_writer": False,
+    "cross_reference_check": False,
+    "vision_enabled": False,
+    "reflexion_enabled": False,
     "persona": "",
 }
 

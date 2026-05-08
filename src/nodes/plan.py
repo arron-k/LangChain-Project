@@ -32,12 +32,25 @@ def plan_node(state: dict, llm: Optional[BaseChatModel] = None) -> dict:
         user_parts.append(f"Previous reflection (revise plan based on this):\n{prev_reflection}")
 
     if state.get("use_lessons"):
-        from src.lessons import relevant_lessons
+        from src.lessons import relevant_lessons, relevant_reflexions
 
-        lessons = relevant_lessons(topic, k=3)
-        if lessons:
-            tips = "\n".join(f"- {l.get('reflection', '')[:200]}" for l in lessons)
-            user_parts.append(f"Lessons from past similar topics:\n{tips}")
+        memos = relevant_reflexions(topic, k=3)
+        if memos:
+            tips = []
+            for m in memos:
+                strat = m.get("strategy_for_next_time") or ""
+                improve = "; ".join(m.get("what_to_improve", [])[:2])
+                if strat:
+                    tips.append(f"- Strategy: {strat}")
+                if improve:
+                    tips.append(f"- Avoid: {improve}")
+            if tips:
+                user_parts.append("Lessons from past similar topics:\n" + "\n".join(tips))
+        else:
+            lessons = relevant_lessons(topic, k=3)
+            if lessons:
+                tips = "\n".join(f"- {l.get('reflection', '')[:200]}" for l in lessons)
+                user_parts.append(f"Lessons from past similar topics:\n{tips}")
 
     messages = [
         SystemMessage(content=_system_prompt(language, n, persona=state.get("persona", ""))),

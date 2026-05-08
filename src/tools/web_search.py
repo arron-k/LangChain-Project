@@ -8,6 +8,7 @@ def make_tavily_search(
     include_domains: Optional[list[str]] = None,
     exclude_domains: Optional[list[str]] = None,
     time_range: str = "",
+    include_images: bool = False,
 ) -> SearchFn:
     from langchain_tavily import TavilySearch
 
@@ -18,13 +19,24 @@ def make_tavily_search(
         kwargs["exclude_domains"] = exclude_domains
     if time_range:
         kwargs["time_range"] = time_range
+    if include_images:
+        kwargs["include_images"] = True
 
     tool = TavilySearch(**kwargs)
 
     def _search(query: str) -> list[dict]:
         raw = tool.invoke({"query": query})
         items = raw.get("results", []) if isinstance(raw, dict) else raw
-        return [
+        images = raw.get("images", []) if isinstance(raw, dict) else []
+        normalized_images = []
+        for img in images:
+            if isinstance(img, str):
+                normalized_images.append({"url": img, "description": ""})
+            elif isinstance(img, dict):
+                normalized_images.append(
+                    {"url": img.get("url", ""), "description": img.get("description", "")}
+                )
+        out = [
             {
                 "url": r.get("url", ""),
                 "content": r.get("content", ""),
@@ -34,6 +46,9 @@ def make_tavily_search(
             }
             for r in items
         ]
+        if normalized_images and out:
+            out[0]["_images"] = normalized_images[:3]
+        return out
 
     return _search
 
