@@ -12,7 +12,14 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 load_dotenv(ROOT / ".env")
 
-from src.ab_compare import PRESETS, judge_pair, run_one  # noqa: E402
+from src.ab_compare import (  # noqa: E402
+    PRESETS,
+    judge_pair,
+    preset_description,
+    preset_label,
+    preset_tags,
+    run_one,
+)
 from src.cache import SearchCache  # noqa: E402
 from src.exporters import markdown_to_docx_bytes, markdown_to_pdf_bytes  # noqa: E402
 from src.feedback import FeedbackStore  # noqa: E402
@@ -725,31 +732,34 @@ with tab_resume:
 
 
 with tab_ab:
-    st.caption(
-        "두 옵션 조합을 같은 토픽으로 동시에 실행하고 LLM-judge가 승자를 선언합니다."
-    )
+    st.caption(L("ab_intro"))
     ab_topic = st.text_input(L("ab_topic"), value="LangGraph reflection patterns", key="ab_topic_input")
 
     preset_keys = list(PRESETS.keys())
+    ui_lang = st.session_state.ui_lang
     col_a, col_b = st.columns(2)
     with col_a:
         preset_a = st.selectbox(
             L("ab_preset_a"),
             options=preset_keys,
             index=0,
-            format_func=lambda k: PRESETS[k]["label"],
+            format_func=lambda k: preset_label(k, ui_lang),
             key="preset_a",
         )
-        st.caption(PRESETS[preset_a]["description"])
+        st.markdown(f"**{preset_label(preset_a, ui_lang)}**")
+        st.caption(preset_description(preset_a, ui_lang))
+        st.caption(preset_tags(preset_a, ui_lang))
     with col_b:
         preset_b = st.selectbox(
             L("ab_preset_b"),
             options=preset_keys,
             index=min(4, len(preset_keys) - 1),
-            format_func=lambda k: PRESETS[k]["label"],
+            format_func=lambda k: preset_label(k, ui_lang),
             key="preset_b",
         )
-        st.caption(PRESETS[preset_b]["description"])
+        st.markdown(f"**{preset_label(preset_b, ui_lang)}**")
+        st.caption(preset_description(preset_b, ui_lang))
+        st.caption(preset_tags(preset_b, ui_lang))
 
     if st.button(L("ab_run"), type="primary", use_container_width=True):
         if ab_topic.strip() and not use_fake:
@@ -801,7 +811,7 @@ with tab_ab:
 
             ca, cb = st.columns(2)
             with ca:
-                st.markdown(f"#### 🅰️ {PRESETS[preset_a]['label']}")
+                st.markdown(f"#### 🅰️ {preset_label(preset_a, ui_lang)}")
                 if verdict["score_a"]:
                     s = verdict["score_a"]
                     st.write(
@@ -813,7 +823,7 @@ with tab_ab:
                 with st.expander("📄 Report A"):
                     st.markdown(state_a.get("final_report", "_(empty)_"))
             with cb:
-                st.markdown(f"#### 🅱️ {PRESETS[preset_b]['label']}")
+                st.markdown(f"#### 🅱️ {preset_label(preset_b, ui_lang)}")
                 if verdict["score_b"]:
                     s = verdict["score_b"]
                     st.write(

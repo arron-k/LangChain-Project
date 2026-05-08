@@ -1,6 +1,6 @@
 # Progress Log
 
-MVP 단계가 끝날 때마다 _무엇을 / 왜 / 어떻게 / 학습 포인트 / 다음 단계_ 를 기록합니다.
+MVP 단계가 끝날 때마다 *무엇을 / 왜 / 어떻게 / 학습 포인트 / 다음 단계* 를 기록합니다.
 
 ---
 
@@ -8,14 +8,16 @@ MVP 단계가 끝날 때마다 _무엇을 / 왜 / 어떻게 / 학습 포인트 /
 
 ### 1. 무엇을 만들었나
 
-| 파일 | 역할 |
-|---|---|
-| `src/state.py` | `ResearchState(TypedDict)` — 그래프가 주고받는 상태 스키마 (`topic`, `message`) |
-| `src/nodes/hello.py` | `hello_node(state) -> dict` — 입력 topic을 읽어 message를 채우는 결정적 노드 |
-| `src/graph.py` | `StateGraph` 조립 → `compile()` → `Runnable` 반환. CLI 데모 포함 |
-| `tests/test_state.py` | TypedDict의 키/타입 계약 검증 |
-| `tests/test_graph.py` | 노드 단위 + 그래프 invoke 통합 검증 (4 테스트) |
-| `CLAUDE.md` / `plan.md` / `progress.md` / `README.md` | 협업 규칙·로드맵·로그·개요 |
+
+| 파일                                                    | 역할                                                                 |
+| ----------------------------------------------------- | ------------------------------------------------------------------ |
+| `src/state.py`                                        | `ResearchState(TypedDict)` — 그래프가 주고받는 상태 스키마 (`topic`, `message`) |
+| `src/nodes/hello.py`                                  | `hello_node(state) -> dict` — 입력 topic을 읽어 message를 채우는 결정적 노드     |
+| `src/graph.py`                                        | `StateGraph` 조립 → `compile()` → `Runnable` 반환. CLI 데모 포함           |
+| `tests/test_state.py`                                 | TypedDict의 키/타입 계약 검증                                              |
+| `tests/test_graph.py`                                 | 노드 단위 + 그래프 invoke 통합 검증 (4 테스트)                                   |
+| `CLAUDE.md` / `plan.md` / `progress.md` / `README.md` | 협업 규칙·로드맵·로그·개요                                                    |
+
 
 검증 결과: `pytest` 6/6 통과, `python -m src.graph "LangGraph"` → `Hello, LangGraph! topic=LangGraph` 출력.
 
@@ -45,11 +47,11 @@ graph.invoke({"topic": "LangGraph", "message": ""})
 
 ### 4. 학습 포인트 (이번 단계의 핵심)
 
-1. **`StateGraph`는 "어떤 모양의 state를 주고받을지"를 먼저 선언**합니다. 그 모양이 `TypedDict`입니다. 이게 그래프 전체의 인터페이스 역할을 합니다.
+1. `**StateGraph`는 "어떤 모양의 state를 주고받을지"를 먼저 선언**합니다. 그 모양이 `TypedDict`입니다. 이게 그래프 전체의 인터페이스 역할을 합니다.
 2. **노드는 "변화분(partial state)"만 반환**합니다. `return {"message": ...}` 가 자동으로 머지됩니다. 전체 state를 다시 만들어 돌려줄 필요가 없습니다 — 이건 reducer 패턴과 같습니다.
-3. **`compile()` 의 의미**: 그래프 정의(빌더) → 실제 실행 가능한 `Runnable` 변환. compile 후에는 `invoke / stream / batch` 같은 LangChain Runnable 인터페이스를 그대로 씁니다.
-4. **`START`, `END`는 sentinel**: 진입/종료를 명시적으로 표시하는 특별 노드입니다. `set_entry_point("hello")` 대신 `add_edge(START, "hello")` 를 쓰는 최신 컨벤션을 채택했습니다.
-5. **`invoke` vs `stream`**: 이번엔 `invoke`(최종 결과만)만 썼지만, M4에서 `stream`(노드별 중간 결과)을 다룹니다. 같은 그래프, 다른 호출 방식.
+3. `**compile()` 의 의미**: 그래프 정의(빌더) → 실제 실행 가능한 `Runnable` 변환. compile 후에는 `invoke / stream / batch` 같은 LangChain Runnable 인터페이스를 그대로 씁니다.
+4. `**START`, `END`는 sentinel**: 진입/종료를 명시적으로 표시하는 특별 노드입니다. `set_entry_point("hello")` 대신 `add_edge(START, "hello")` 를 쓰는 최신 컨벤션을 채택했습니다.
+5. `**invoke` vs `stream`**: 이번엔 `invoke`(최종 결과만)만 썼지만, M4에서 `stream`(노드별 중간 결과)을 다룹니다. 같은 그래프, 다른 호출 방식.
 6. **TDD 첫 사이클**: 임포트만 적힌 테스트도 "이 모듈이 존재해야 한다"는 계약입니다. `ModuleNotFoundError`도 의미 있는 빨강입니다.
 
 ### 5. 막힌 곳 / 결정
@@ -71,28 +73,30 @@ graph.invoke({"topic": "LangGraph", "message": ""})
 
 ### 1. 무엇을 만들었나
 
-| 파일 | 역할 |
-|---|---|
-| `src/state.py` | state 확장: `sub_questions`, `search_results`(reducer), `summaries`(reducer), `final_report` |
-| `src/llm.py` | `get_chat_model()` factory — Claude Sonnet 호출 지점을 한 곳으로 집중 |
-| `src/tools/web_search.py` | `tavily_search(query)` — Tavily 응답을 `[{url, content}, ...]` 모양으로 정규화 |
-| `src/nodes/plan.py` | 주제 → sub-question JSON 추출. JSON 깨지면 fallback 1개 |
-| `src/nodes/search.py` | sub-question별 검색, `{question, hits}` 항목으로 누적 |
-| `src/nodes/summarize.py` | 질문+증거 묶어 요약 1건씩 생성 |
-| `src/nodes/write.py` | 요약·출처를 모아 마크다운 보고서 생성 |
-| `src/graph.py` | 4-노드 선형 그래프 + `--fake` 데모 모드 |
-| `tests/conftest.py` | `make_fake_llm(responses)` 헬퍼 (FakeListChatModel) |
-| `tests/test_nodes.py` | 4개 노드 각각 단위 테스트 |
-| `tests/test_graph.py` | E2E 그래프 invoke (전부 fake) |
-| `tests/test_tavily_integration.py` | 실제 Tavily 호출 smoke test (skipif로 키 없으면 skip) |
+
+| 파일                                 | 역할                                                                                         |
+| ---------------------------------- | ------------------------------------------------------------------------------------------ |
+| `src/state.py`                     | state 확장: `sub_questions`, `search_results`(reducer), `summaries`(reducer), `final_report` |
+| `src/llm.py`                       | `get_chat_model()` factory — Claude Sonnet 호출 지점을 한 곳으로 집중                                 |
+| `src/tools/web_search.py`          | `tavily_search(query)` — Tavily 응답을 `[{url, content}, ...]` 모양으로 정규화                       |
+| `src/nodes/plan.py`                | 주제 → sub-question JSON 추출. JSON 깨지면 fallback 1개                                            |
+| `src/nodes/search.py`              | sub-question별 검색, `{question, hits}` 항목으로 누적                                               |
+| `src/nodes/summarize.py`           | 질문+증거 묶어 요약 1건씩 생성                                                                         |
+| `src/nodes/write.py`               | 요약·출처를 모아 마크다운 보고서 생성                                                                      |
+| `src/graph.py`                     | 4-노드 선형 그래프 + `--fake` 데모 모드                                                               |
+| `tests/conftest.py`                | `make_fake_llm(responses)` 헬퍼 (FakeListChatModel)                                          |
+| `tests/test_nodes.py`              | 4개 노드 각각 단위 테스트                                                                            |
+| `tests/test_graph.py`              | E2E 그래프 invoke (전부 fake)                                                                   |
+| `tests/test_tavily_integration.py` | 실제 Tavily 호출 smoke test (skipif로 키 없으면 skip)                                               |
+
 
 검증: `pytest -q` **10/10 PASS**, `python -m src.graph --fake "LangGraph reflection patterns"` 실행 시 마크다운 보고서 + 9개 실제 URL 출력.
 
 ### 2. 왜 이렇게 했나 — 설계 의도
 
 - **노드의 시그니처를 `(state, llm=None) → dict` / `(state, search_fn=None) → dict`** 로 잡았습니다. 운영 코드는 None일 때 기본 구현을 lazy-import하고, 테스트는 fake를 주입합니다. LangGraph의 `partial(node, llm=...)` 으로 그래프 빌더에서 한 번에 주입.
-- **`Annotated[list, operator.add]` reducer**를 `search_results`/`summaries`에 적용했습니다. M3에서 reflection 루프가 도입되면 같은 노드가 여러 번 실행되며 결과가 자연스럽게 누적됩니다 — M2에서 미리 깔아둔 토대.
-- **`sub_questions`는 reducer 없음** = 매번 덮어씀. M3에서 plan을 다시 부를 일이 없으니 의도된 비대칭.
+- `**Annotated[list, operator.add]` reducer**를 `search_results`/`summaries`에 적용했습니다. M3에서 reflection 루프가 도입되면 같은 노드가 여러 번 실행되며 결과가 자연스럽게 누적됩니다 — M2에서 미리 깔아둔 토대.
+- `**sub_questions`는 reducer 없음** = 매번 덮어씀. M3에서 plan을 다시 부를 일이 없으니 의도된 비대칭.
 - **JSON 파싱 실패 시 fallback** — 실제 LLM은 가끔 코드펜스를 두르거나 prefix를 답니다. `re.search(r"\{.*\}", text, re.DOTALL)` 로 추출하고 실패해도 그래프가 죽지 않게.
 
 ### 3. 데이터 흐름 (실제 실행 기준)
@@ -144,24 +148,26 @@ state.final_report = "# Demo Report\n..."
 
 ### 1. 무엇을 만들었나
 
-| 파일 | 변경/추가 |
-|---|---|
-| `src/state.py` | `iteration: int`, `sufficient: bool`, `reflection: str` 추가 |
-| `src/nodes/reflect.py` | **신규** — summaries 평가, `{"sufficient", "gaps"}` JSON 파싱 |
-| `src/nodes/search.py` | `iteration` 카운터 +1 추가 |
-| `src/nodes/summarize.py` | 누적된 search_results 중 **아직 요약되지 않은 항목만** 처리하도록 수정 (중요) |
-| `src/graph.py` | `reflect` 노드 + `add_conditional_edges("reflect", router, {...})` 추가, `MAX_ITERATIONS=3` |
-| `tests/test_reflect.py` | 신규 — reflect 노드 단위 테스트 3건 |
-| `tests/test_loop.py` | 신규 — 루프 시나리오 2건 (1회 보강 후 종료 / cap 도달) |
+
+| 파일                       | 변경/추가                                                                                   |
+| ------------------------ | --------------------------------------------------------------------------------------- |
+| `src/state.py`           | `iteration: int`, `sufficient: bool`, `reflection: str` 추가                              |
+| `src/nodes/reflect.py`   | **신규** — summaries 평가, `{"sufficient", "gaps"}` JSON 파싱                                 |
+| `src/nodes/search.py`    | `iteration` 카운터 +1 추가                                                                   |
+| `src/nodes/summarize.py` | 누적된 search_results 중 **아직 요약되지 않은 항목만** 처리하도록 수정 (중요)                                   |
+| `src/graph.py`           | `reflect` 노드 + `add_conditional_edges("reflect", router, {...})` 추가, `MAX_ITERATIONS=3` |
+| `tests/test_reflect.py`  | 신규 — reflect 노드 단위 테스트 3건                                                               |
+| `tests/test_loop.py`     | 신규 — 루프 시나리오 2건 (1회 보강 후 종료 / cap 도달)                                                   |
+
 
 검증: `pytest -q` **15/15 PASS**, `python -m src.graph --fake "..."` 정상 출력 (1 iter sufficient).
 
 ### 2. 왜 이렇게 했나 — 설계 의도
 
-- **`add_conditional_edges`** 가 LangGraph에서 분기/루프를 만드는 유일한 메커니즘입니다. 라우터 함수 `_route_after_reflect(state) -> str` 가 다음 노드 이름을 반환하면, mapping dict (`{"search": "search", "write": "write"}`) 로 실제 노드를 찾아갑니다.
+- `**add_conditional_edges`** 가 LangGraph에서 분기/루프를 만드는 유일한 메커니즘입니다. 라우터 함수 `_route_after_reflect(state) -> str` 가 다음 노드 이름을 반환하면, mapping dict (`{"search": "search", "write": "write"}`) 로 실제 노드를 찾아갑니다.
 - **종료 조건은 두 가지**: (1) `sufficient=True` 또는 (2) `iteration >= MAX_ITERATIONS`. 두 번째가 없으면 LLM이 영원히 "부족"을 외칠 때 무한 루프. **반드시 cap을 넣는다**가 reflection 패턴의 철칙.
 - **요약은 "새 항목만"** — search/summarize에 둘 다 reducer를 쓰면 search_results는 누적됩니다. 그러면 매 라운드 summarize가 이미 요약한 것까지 다시 LLM에 보내 비용·시간이 폭증하고, 출력 길이도 어긋납니다. `pending = search_results[len(summaries):]` 한 줄로 해결.
-- **`sub_questions` 는 reducer 없음 = 매번 덮어씀**: reflect가 새 gap 질문을 만들면 다음 search는 그것만 검색합니다. 의도된 설계입니다.
+- `**sub_questions` 는 reducer 없음 = 매번 덮어씀**: reflect가 새 gap 질문을 만들면 다음 search는 그것만 검색합니다. 의도된 설계입니다.
 
 ### 3. 그래프 토폴로지 (M2 → M3 변화)
 
@@ -194,11 +200,11 @@ write:       final_report 작성 → END
 
 ### 5. 학습 포인트 (이번 단계의 핵심)
 
-1. **`add_conditional_edges(node, router, mapping)`** — LangGraph의 분기/루프 메커니즘. router는 state 보고 다음 노드 이름을 문자열로 반환. mapping은 그 문자열 → 실제 노드 이름. 두 번째와 세 번째 인자가 같은 의미의 문자열일 때도 mapping을 명시하면 의도가 분명해집니다.
+1. `**add_conditional_edges(node, router, mapping)**` — LangGraph의 분기/루프 메커니즘. router는 state 보고 다음 노드 이름을 문자열로 반환. mapping은 그 문자열 → 실제 노드 이름. 두 번째와 세 번째 인자가 같은 의미의 문자열일 때도 mapping을 명시하면 의도가 분명해집니다.
 2. **루프 종료 조건 = 의도 + 안전망** — "충분하다" 같은 LLM 판단에 의존하면 무한 루프 위험. 반드시 별도의 hard cap (`iteration >= N`)을 함께 두기.
 3. **Reducer는 양날의 검** — `Annotated[list, operator.add]` 가 누적을 자동화하지만, 그걸 다시 처리하는 노드는 "이미 처리한 부분"을 알아야 합니다. M3에서 summarize 버그가 그 함정이었고, `len(summaries)` 로 동기화해 해결.
 4. **카운터를 어디서 증가시킬까** — `iteration`을 reflect에서 올릴 수도 있지만 search에서 올렸습니다. "search 진입 = 한 번의 리서치 라운드 시작"이라는 의미가 가장 자연스러워서. cap 비교는 reflect 라우터에서.
-5. **`FakeListChatModel`로 비결정 LLM을 결정 시뮬레이션** — 루프 테스트에서 "이번엔 부족, 다음엔 충분" 같은 시나리오를 응답 리스트로 정확히 재현했습니다. 같은 패턴으로 회귀 테스트를 계속 쌓을 수 있습니다.
+5. `**FakeListChatModel`로 비결정 LLM을 결정 시뮬레이션** — 루프 테스트에서 "이번엔 부족, 다음엔 충분" 같은 시나리오를 응답 리스트로 정확히 재현했습니다. 같은 패턴으로 회귀 테스트를 계속 쌓을 수 있습니다.
 6. **버그 → 수정 사이클이 TDD의 진짜 가치** — 처음 cap 테스트가 `2 == 3` 으로 실패했고, 그게 summarize의 누적 처리 버그를 드러냈습니다. 테스트가 없었다면 실 LLM에서 토큰 낭비로 발견했을 문제.
 
 ### 6. 막힌 곳 / 결정
@@ -217,21 +223,23 @@ write:       final_report 작성 → END
 
 ### 1. 무엇을 만들었나
 
-| 파일 | 변경/추가 |
-|---|---|
-| `src/graph.py` | `build_graph(checkpointer=None, interrupt_before=None)` 인자 추가 — 컴파일 시 주입 |
-| `tests/test_persistence.py` | **신규** — 4 테스트: 상태 저장 / 스레드 격리 / interrupt+resume / 스트리밍 청크 |
-| `ui/app.py` | thread_id 입력, "Resume Existing Thread" 탭, interrupt 토글, `graph.stream` 으로 노드 타임라인, `SqliteSaver` 연결 |
-| `pyproject.toml` | `langgraph-checkpoint-sqlite` 추가 |
+
+| 파일                          | 변경/추가                                                                                               |
+| --------------------------- | --------------------------------------------------------------------------------------------------- |
+| `src/graph.py`              | `build_graph(checkpointer=None, interrupt_before=None)` 인자 추가 — 컴파일 시 주입                            |
+| `tests/test_persistence.py` | **신규** — 4 테스트: 상태 저장 / 스레드 격리 / interrupt+resume / 스트리밍 청크                                         |
+| `ui/app.py`                 | thread_id 입력, "Resume Existing Thread" 탭, interrupt 토글, `graph.stream` 으로 노드 타임라인, `SqliteSaver` 연결 |
+| `pyproject.toml`            | `langgraph-checkpoint-sqlite` 추가                                                                    |
+
 
 검증: `pytest -q` **19/19 PASS**, Streamlit UI 영속성 + interrupt 동작.
 
 ### 2. 왜 이렇게 했나 — 설계 의도
 
 - **Checkpointer는 컴파일 시점에 주입**: `builder.compile(checkpointer=saver)`. 그래프 빌더는 그대로 두고 컴파일 옵션만 다르게 하면 같은 토폴로지를 영속/비영속으로 동시에 굴릴 수 있습니다.
-- **`MemorySaver` (테스트) vs `SqliteSaver` (UI)**: 둘 다 `BaseCheckpointSaver` 인터페이스라 코드 변경 없이 교체. 테스트는 빠르고 결정적인 메모리, 운영은 디스크 기반 sqlite.
-- **`thread_id`는 config의 `configurable`에 들어간다**: `config = {"configurable": {"thread_id": "abc"}}`. 같은 thread_id면 이어서, 다른 id면 격리. 멀티 사용자/세션 자연 지원.
-- **`interrupt_before=["write"]` + `invoke(None, config)`**: write 진입 직전에 그래프가 **얼어붙고** 상태가 체크포인트에 저장됩니다. 다음 호출 때 입력으로 `None`을 주면 "거기서 이어서 돌려" 라는 의미가 되어 write 노드부터 재개.
+- `**MemorySaver` (테스트) vs `SqliteSaver` (UI)**: 둘 다 `BaseCheckpointSaver` 인터페이스라 코드 변경 없이 교체. 테스트는 빠르고 결정적인 메모리, 운영은 디스크 기반 sqlite.
+- `**thread_id`는 config의 `configurable`에 들어간다**: `config = {"configurable": {"thread_id": "abc"}}`. 같은 thread_id면 이어서, 다른 id면 격리. 멀티 사용자/세션 자연 지원.
+- `**interrupt_before=["write"]` + `invoke(None, config)`**: write 진입 직전에 그래프가 **얼어붙고** 상태가 체크포인트에 저장됩니다. 다음 호출 때 입력으로 `None`을 주면 "거기서 이어서 돌려" 라는 의미가 되어 write 노드부터 재개.
 - **스트리밍은 `stream_mode`** 로 의미가 갈림:
   - `updates` — 노드가 반환한 변화분만 (가장 가독성 ↑, UI 타임라인에 적합)
   - `values` — 매 단계의 전체 state 스냅샷
@@ -256,9 +264,9 @@ write:       final_report 작성 → END
 ### 4. 학습 포인트
 
 1. **Checkpointer = thread_id 별 상태 저장소**. 그래프 한 번 정의하면 무수한 동시 thread를 같은 그래프로 처리 가능 (마치 Redux store별 사용자처럼).
-2. **`graph.invoke(None, config)` 의 의미**: "새 입력 없이, 저장된 곳에서 이어 돌려." interrupt 상태를 풀고 다음 노드로 넘기는 표준 관용구.
-3. **`interrupt_before` vs `interrupt_after`**: 둘 다 가능. 보고서 검토는 before-write가 자연. 도구 호출 승인 같은 케이스는 after-tool 패턴.
-4. **`graph.get_state(config)` 로 외부에서 현재 상태/다음 노드 조회**: UI의 "Resume Existing Thread" 탭이 이걸 사용. `snap.next` 가 비어있으면 종료, 비어있지 않으면 거기서 멈춰있다는 뜻.
+2. `**graph.invoke(None, config)` 의 의미**: "새 입력 없이, 저장된 곳에서 이어 돌려." interrupt 상태를 풀고 다음 노드로 넘기는 표준 관용구.
+3. `**interrupt_before` vs `interrupt_after`**: 둘 다 가능. 보고서 검토는 before-write가 자연. 도구 호출 승인 같은 케이스는 after-tool 패턴.
+4. `**graph.get_state(config)` 로 외부에서 현재 상태/다음 노드 조회**: UI의 "Resume Existing Thread" 탭이 이걸 사용. `snap.next` 가 비어있으면 종료, 비어있지 않으면 거기서 멈춰있다는 뜻.
 5. **스트리밍은 progress UI 의 핵심**: `stream_mode="updates"` 청크는 `{"노드명": 변화분 dict}` 형태. UI에서 이걸 그대로 타임라인 카드로 그릴 수 있습니다.
 6. **테스트에서 Memory, 운영에서 Sqlite** 패턴은 LangChain 전반의 컨벤션 (대부분의 abstraction이 인메모리/디스크 두 구현을 제공).
 
@@ -278,18 +286,20 @@ write:       final_report 작성 → END
 
 ### 1. 무엇을 만들었나
 
-| 파일 | 변경/추가 |
-|---|---|
-| `README.md` | 빠른 시작·스택·실행 모드 표·디렉토리 구조·시나리오·LangSmith 가이드·트러블슈팅 정비 |
-| `scripts/show_graph.py` | **신규** — `graph.get_graph().draw_mermaid()` 와 ASCII 출력 |
-| `ui/app.py` | 사이드바에 Mermaid 그래프 다이어그램 expander 추가 |
-| `plan.md` / `progress.md` | M5 ✅ 표시 + 회고 |
+
+| 파일                        | 변경/추가                                                  |
+| ------------------------- | ------------------------------------------------------ |
+| `README.md`               | 빠른 시작·스택·실행 모드 표·디렉토리 구조·시나리오·LangSmith 가이드·트러블슈팅 정비   |
+| `scripts/show_graph.py`   | **신규** — `graph.get_graph().draw_mermaid()` 와 ASCII 출력 |
+| `ui/app.py`               | 사이드바에 Mermaid 그래프 다이어그램 expander 추가                    |
+| `plan.md` / `progress.md` | M5 ✅ 표시 + 회고                                           |
+
 
 검증: `pytest -q` **19/19 PASS**, `uv run python scripts/show_graph.py` Mermaid 출력 정상.
 
 ### 2. 학습 포인트
 
-1. **`graph.get_graph().draw_mermaid()`** — 컴파일된 그래프 토폴로지를 Mermaid 문법으로 직접 추출. 문서·UI에 그대로 임베드 가능.
+1. `**graph.get_graph().draw_mermaid()`** — 컴파일된 그래프 토폴로지를 Mermaid 문법으로 직접 추출. 문서·UI에 그대로 임베드 가능.
 2. **conditional edge는 `-.->` 점선** 으로 표시됨 (Mermaid 출력에서 reflect→search/write 가 점선) — 분기와 일반 엣지를 시각적으로 구분.
 3. **README는 "다섯 단계의 결과물" 인덱스** — 미래의 자기·동료가 한 번에 진입할 수 있는 단일 페이지. 우리 프로젝트의 학습용 가치는 여기에 응축됩니다.
 
@@ -299,27 +309,32 @@ write:       final_report 작성 → END
 
 이 프로젝트는 LangGraph를 작은 단위부터 누적으로 쌓아 올리며 학습했습니다. 단계별 핵심 키워드:
 
-| 단계 | 한 줄 정의 | 새로 배운 LangGraph 개념 |
-|---|---|---|
-| **M1** | "그래프란 무엇인가" | `StateGraph`, `TypedDict`, 노드 = 변화분 dict 반환, `START/END`, `compile()` |
-| **M2** | "선형 파이프라인 + 외부 도구" | `Annotated[list, operator.add]` reducer, 노드 DI 패턴, `FakeListChatModel`, 도구 래퍼 정규화 |
-| **M3** | "분기와 루프, 그리고 종료 조건" | `add_conditional_edges`, 라우터 함수, hard cap, reducer 누적 처리 함정 |
-| **M4** | "상태가 디스크에 산다" | `checkpointer`, `thread_id` config, `interrupt_before`, `graph.invoke(None, ...)`, `stream_mode` |
-| **M5** | "사용자에게 보여주기" | `graph.get_graph().draw_mermaid()`, Streamlit 통합, README/문서로 응결 |
+
+| 단계     | 한 줄 정의              | 새로 배운 LangGraph 개념                                                                               |
+| ------ | ------------------- | ------------------------------------------------------------------------------------------------ |
+| **M1** | "그래프란 무엇인가"         | `StateGraph`, `TypedDict`, 노드 = 변화분 dict 반환, `START/END`, `compile()`                            |
+| **M2** | "선형 파이프라인 + 외부 도구"  | `Annotated[list, operator.add]` reducer, 노드 DI 패턴, `FakeListChatModel`, 도구 래퍼 정규화                |
+| **M3** | "분기와 루프, 그리고 종료 조건" | `add_conditional_edges`, 라우터 함수, hard cap, reducer 누적 처리 함정                                      |
+| **M4** | "상태가 디스크에 산다"       | `checkpointer`, `thread_id` config, `interrupt_before`, `graph.invoke(None, ...)`, `stream_mode` |
+| **M5** | "사용자에게 보여주기"        | `graph.get_graph().draw_mermaid()`, Streamlit 통합, README/문서로 응결                                  |
+
 
 ### TDD가 실제로 잡아낸 것
+
 - **M3 cap 테스트 `2 == 3` 실패** → summarize가 누적 search_results를 매번 재요약하는 버그 발견 → `pending = search_results[len(summaries):]` 슬라이싱으로 해결. 실 LLM이었으면 토큰 낭비로만 보였을 문제를 fake LLM의 결정성이 즉시 드러냈습니다.
 
 ### 의도적으로 안 한 것 (그리고 이유)
+
 - **모든 노드를 클래스로 만들기** — 함수 + DI 로 충분. 클래스는 상태가 노드 자체에 있을 때만 가치.
 - **광범위한 try/except** — 노드는 순수 함수에 가까울수록 좋음. 외부 경계(LLM 응답 파싱)에서만 fallback.
 - **추상 도구 인터페이스** — Tavily 외 검색이 들어올 때 만들면 충분. 지금은 `SearchFn = Callable[[str], list[dict]]` 한 줄로 끝.
 
 ### 다음에 시도하면 좋을 확장
+
 - **Multi-agent (Supervisor)** — researcher / critic / writer 분리. 같은 `StateGraph` 위에 노드만 늘리면 됨.
 - **RAG hybrid** — 사내 문서 retriever를 search 노드와 병렬 호출 (`Send` API).
 - **평가 자동화** — LangSmith Datasets + LLM-as-judge 로 보고서 품질 회귀 테스트.
-- **`stream_mode="messages"`** — LLM 토큰 단위 스트리밍. 실 Anthropic 키가 들어오는 순간 UI에 즉시 반영 가능.
+- `**stream_mode="messages"`** — LLM 토큰 단위 스트리밍. 실 Anthropic 키가 들어오는 순간 UI에 즉시 반영 가능.
 - **배포** — LangGraph Cloud 또는 FastAPI + Docker 로 외부 서비스화.
 
 이 코드베이스는 위 모든 확장의 출발점으로 충분히 깨끗합니다.

@@ -49,6 +49,30 @@ def test_max_quality_preset_includes_advanced_features():
     assert opts.get("cross_reference_check") is True
 
 
+def test_preset_label_returns_localized_string():
+    from src.ab_compare import preset_label
+
+    assert preset_label("default", "ko").startswith("🚀")
+    assert "Basic" in preset_label("default", "en")
+    assert "기본" in preset_label("default", "ko")
+
+
+def test_preset_description_falls_back_to_english_for_unknown_lang():
+    from src.ab_compare import preset_description
+
+    en_desc = preset_description("max_quality", "en")
+    fallback = preset_description("max_quality", "fr")
+    assert en_desc == fallback
+
+
+def test_preset_tags_present_for_all_presets():
+    from src.ab_compare import preset_tags
+
+    for k in PRESETS:
+        assert preset_tags(k, "ko")
+        assert preset_tags(k, "en")
+
+
 def _score(overall: float) -> JudgeScore:
     return JudgeScore(
         accuracy=overall, citations=overall, structure=overall,
