@@ -44,6 +44,7 @@ def test_write_node_self_correct_path_does_not_break_when_no_keys(monkeypatch):
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
 
     llm = make_fake_llm(["# Report\n\nBody [1]."])
     out = write_node(
@@ -62,6 +63,7 @@ def test_write_node_cross_reference_safe_without_keys(monkeypatch):
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
 
     llm = make_fake_llm(["# Report\n\nBody [1]."])
     out = write_node(

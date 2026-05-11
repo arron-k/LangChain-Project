@@ -40,6 +40,10 @@ class ResearchState(TypedDict, total=False):
     image_findings: list[dict]
     reflexion_enabled: bool
     reflexion_memo: dict
+    search_mode: str
+    internal_sources: list[str]
+    hybrid_web_weight: float
+    hybrid_max_per_source: int
     persona: str
     follow_up: str
 
@@ -69,6 +73,10 @@ DEFAULTS = {
     "cross_reference_check": False,
     "vision_enabled": False,
     "reflexion_enabled": False,
+    "search_mode": "web",
+    "internal_sources": ["wiki"],
+    "hybrid_web_weight": 0.5,
+    "hybrid_max_per_source": 3,
     "persona": "",
 }
 

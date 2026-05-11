@@ -28,13 +28,43 @@ def search_node(
     }
 
     if search_fn is None:
-        search_fn = make_tavily_search(
-            max_results=3,
-            include_domains=cache_opts["include_domains"],
-            exclude_domains=cache_opts["exclude_domains"],
-            time_range=cache_opts["time_range"],
-            include_images=bool(state.get("vision_enabled", False)),
-        )
+        mode = state.get("search_mode", "web")
+        if mode == "internal":
+            from src.internal_rag.retriever import make_internal_search_fn
+
+            search_fn = make_internal_search_fn(
+                sources=state.get("internal_sources") or ["wiki"],
+                top_k=5,
+            )
+        elif mode == "hybrid":
+            from src.internal_rag.hybrid import make_hybrid_search_fn
+            from src.internal_rag.retriever import make_internal_search_fn
+
+            web_fn = make_tavily_search(
+                max_results=3,
+                include_domains=cache_opts["include_domains"],
+                exclude_domains=cache_opts["exclude_domains"],
+                time_range=cache_opts["time_range"],
+                include_images=bool(state.get("vision_enabled", False)),
+            )
+            int_fn = make_internal_search_fn(
+                sources=state.get("internal_sources") or ["wiki"],
+                top_k=5,
+            )
+            search_fn = make_hybrid_search_fn(
+                web_fn=web_fn,
+                internal_fn=int_fn,
+                web_weight=float(state.get("hybrid_web_weight", 0.5)),
+                max_per_source=int(state.get("hybrid_max_per_source", 3)),
+            )
+        else:
+            search_fn = make_tavily_search(
+                max_results=3,
+                include_domains=cache_opts["include_domains"],
+                exclude_domains=cache_opts["exclude_domains"],
+                time_range=cache_opts["time_range"],
+                include_images=bool(state.get("vision_enabled", False)),
+            )
 
     if cache is not None and bool(state.get("use_cache", True)):
         from src.cache import with_cache

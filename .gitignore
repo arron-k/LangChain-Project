@@ -33,4 +33,9 @@ usage.sqlite
 thread_meta.sqlite
 feedback.sqlite
 judge.sqlite
+
+# Internal RAG (Phase 1)
+internal_chroma/
+chroma.sqlite3
+sync_log.sqlite
 lessons.json

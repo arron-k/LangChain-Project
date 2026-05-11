@@ -172,6 +172,121 @@ with st.sidebar:
     reflexion_enabled = st.toggle(L("reflexion"), value=False, help=L("reflexion_help"))
 
     st.markdown("---")
+    st.subheader(L("search_source"))
+
+    _src_options = ["web", "internal", "hybrid"]
+    _src_labels = {
+        "web": L("src_web"),
+        "internal": L("src_internal"),
+        "hybrid": L("src_hybrid"),
+    }
+    search_mode = st.radio(
+        L("search_source"),
+        options=_src_options,
+        format_func=lambda v: _src_labels[v],
+        index=0,
+        label_visibility="collapsed",
+        key="search_mode_radio",
+    )
+
+    internal_sources: list[str] = ["wiki"]
+    hybrid_web_weight: float = 0.5
+    hybrid_max_per_source: int = 3
+    if search_mode == "internal":
+        internal_sources = st.multiselect(
+            L("select_internal_sources"),
+            options=["wiki", "slack"],
+            default=["wiki"],
+            format_func=lambda v: {"wiki": "📚 Wiki (Confluence)", "slack": "💬 Slack"}[v],
+        )
+        try:
+            from src.internal_rag.sync_log import SyncLog, format_relative
+            from src.internal_rag.vector_store import collection_stats, count_by_source
+
+            stats = collection_stats()
+            per_src_counts = count_by_source()
+            sync_records = SyncLog().all()
+        except Exception as e:
+            stats = {"count": 0, "error": str(e)}
+            per_src_counts = {}
+            sync_records = {}
+
+        with st.expander(L("ingest_status"), expanded=True):
+            st.metric(L("ingest_docs"), stats.get("count", 0))
+            if stats.get("path"):
+                st.caption(f"{L('ingest_path')}: `{stats['path']}`")
+            if stats.get("error"):
+                st.warning(stats["error"])
+
+            st.markdown(f"**{L('per_source_sync')}**")
+
+            def _run_sync(src: str, *, incremental: bool):
+                from src.internal_rag.ingest import ingest as run_ingest
+
+                with st.spinner(L("syncing").format(source=src)):
+                    try:
+                        r = run_ingest(sources=[src], incremental=incremental)
+                        row = r.get(src, {})
+                        if row.get("error"):
+                            st.error(L("sync_error").format(source=src, err=row["error"][:120]))
+                        else:
+                            st.success(
+                                L("sync_success").format(
+                                    source=src,
+                                    docs=row.get("docs", 0),
+                                    chunks=row.get("chunks_added", 0),
+                                    sec=row.get("elapsed_sec", 0),
+                                )
+                            )
+                        st.rerun()
+                    except Exception as e:
+                        st.error(L("sync_error").format(source=src, err=str(e)[:120]))
+
+            for src in ["wiki", "slack"]:
+                record = sync_records.get(src) or {}
+                chunk_count = per_src_counts.get(src, 0)
+                ts = record.get("last_synced_at")
+                synced_label = format_relative(ts) if ts else L("never_synced")
+                icon = "📚" if src == "wiki" else "💬"
+
+                st.markdown(f"{icon} **{src}**")
+                st.caption(f"{chunk_count:,} chunks · {L('last_synced')}: {synced_label}")
+                btn_cols = st.columns(2)
+                if btn_cols[0].button(L("sync_incremental"), key=f"sync_inc_{src}", help=L("sync_incremental_help")):
+                    _run_sync(src, incremental=True)
+                if btn_cols[1].button(L("sync_full"), key=f"sync_full_{src}", help=L("sync_full_help")):
+                    _run_sync(src, incremental=False)
+
+            st.caption(L("ingest_help"))
+            st.code(
+                " ".join(["uv", "run", "python", "scripts/ingest_internal.py"]
+                + [f"--source {s}" for s in (internal_sources or ["wiki"])]),
+                language="bash",
+            )
+    elif search_mode == "hybrid":
+        internal_sources = st.multiselect(
+            L("select_internal_sources"),
+            options=["wiki", "slack"],
+            default=["wiki", "slack"],
+            format_func=lambda v: {"wiki": "📚 Wiki (Confluence)", "slack": "💬 Slack"}[v],
+        )
+        hybrid_web_weight = st.slider(
+            L("hybrid_web_weight"),
+            min_value=0.0,
+            max_value=1.0,
+            value=0.5,
+            step=0.1,
+            help=L("hybrid_web_weight_help"),
+        )
+        hybrid_max_per_source = st.slider(
+            L("hybrid_max_per_source"),
+            min_value=1,
+            max_value=5,
+            value=3,
+            help=L("hybrid_max_help"),
+        )
+
+    st.markdown("---")
     st.subheader(L("search_filters"))
     include_domains_raw = st.text_input(L("include_domains"), placeholder="github.com, arxiv.org")
     exclude_domains_raw = st.text_input(L("exclude_domains"), placeholder="reddit.com")
@@ -383,6 +498,8 @@ def make_state(topic: str, follow_up: str = "") -> dict:
         multi_agent=multi_agent,
         domain_dedup=domain_dedup,
         max_per_domain=max_per_domain,
+        hybrid_web_weight=hybrid_web_weight,
+        hybrid_max_per_source=hybrid_max_per_source,
         freshness_max_age_days=freshness_days,
         per_agent_models=per_agent_models,
         llm_supervisor=llm_supervisor,
@@ -390,6 +507,8 @@ def make_state(topic: str, follow_up: str = "") -> dict:
         cross_reference_check=cross_reference_check,
         vision_enabled=vision_enabled,
         reflexion_enabled=reflexion_enabled,
+        search_mode=search_mode,
+        internal_sources=internal_sources,
         follow_up=follow_up,
     )
 
@@ -457,8 +576,12 @@ def render_state(out: dict):
             url = h.get("url", "")
             if url and url not in seen:
                 seen.add(url)
-                badge = _freshness_badge(h.get("published_date") or "")
-                st.markdown(f"- {badge} [{url}]({url})")
+                src = h.get("source", "")
+                source_badge = {"wiki": "📚", "slack": "💬", "web": "🌐"}.get(src, "🌐" if "slack.com" not in url and "atlassian.net" not in url else "🏢")
+                freshness = _freshness_badge(h.get("published_date") or "")
+                title = h.get("title", "")
+                title_str = f"  *{title[:60]}*" if title else ""
+                st.markdown(f"- {source_badge} {freshness} [{url}]({url}){title_str}")
 
     if out.get("final_report"):
         st.subheader(L("judge_panel"))

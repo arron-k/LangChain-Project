@@ -53,6 +53,27 @@ def _groq(model: str) -> tuple[BaseChatModel, str]:
     )
 
 
+def _ollama(model: str) -> tuple[BaseChatModel, str]:
+    from langchain_ollama import ChatOllama
+
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    return (
+        ChatOllama(model=model, temperature=0, base_url=base_url),
+        f"ollama:{model}",
+    )
+
+
+def get_embeddings():
+    """Return an embeddings object based on OLLAMA_EMBED_MODEL.
+    Used by the internal RAG ingestion / retriever.
+    """
+    from langchain_ollama import OllamaEmbeddings
+
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    model = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+    return OllamaEmbeddings(model=model, base_url=base_url)
+
+
 def _candidates(role: Role) -> list[tuple[BaseChatModel, str]]:
     out: list[tuple[BaseChatModel, str]] = []
 
@@ -73,6 +94,12 @@ def _candidates(role: Role) -> list[tuple[BaseChatModel, str]]:
         large = os.getenv("GROQ_MODEL_LARGE", "llama-3.3-70b-versatile")
         m = small if role == "small" else (large if role == "large" else small)
         out.append(_groq(m))
+
+    if os.getenv("OLLAMA_BASE_URL"):
+        small = os.getenv("OLLAMA_MODEL_SMALL", os.getenv("OLLAMA_CHAT_MODEL", "qwen2.5:7b"))
+        large = os.getenv("OLLAMA_MODEL_LARGE", os.getenv("OLLAMA_CHAT_MODEL", "qwen2.5:7b"))
+        m = small if role == "small" else (large if role == "large" else small)
+        out.append(_ollama(m))
 
     return out
 
@@ -153,6 +180,8 @@ def available_providers() -> list[str]:
         out.append("anthropic")
     if os.getenv("GROQ_API_KEY"):
         out.append("groq")
+    if os.getenv("OLLAMA_BASE_URL"):
+        out.append("ollama")
     return out
 
 
@@ -182,4 +211,7 @@ def secrets_status() -> dict[str, dict]:
         "ANTHROPIC_API_KEY": {"set": bool(os.getenv("ANTHROPIC_API_KEY")), "masked": mask(os.getenv("ANTHROPIC_API_KEY"))},
         "GROQ_API_KEY": {"set": bool(os.getenv("GROQ_API_KEY")), "masked": mask(os.getenv("GROQ_API_KEY"))},
         "TAVILY_API_KEY": {"set": bool(os.getenv("TAVILY_API_KEY")), "masked": mask(os.getenv("TAVILY_API_KEY"))},
+        "OLLAMA_BASE_URL": {"set": bool(os.getenv("OLLAMA_BASE_URL")), "masked": os.getenv("OLLAMA_BASE_URL") or None},
+        "CONFLUENCE_URL": {"set": bool(os.getenv("CONFLUENCE_URL")), "masked": os.getenv("CONFLUENCE_URL") or None},
+        "CONFLUENCE_API_TOKEN": {"set": bool(os.getenv("CONFLUENCE_API_TOKEN")), "masked": mask(os.getenv("CONFLUENCE_API_TOKEN"))},
     }

@@ -74,6 +74,7 @@ def test_vision_node_handles_llm_unavailable(monkeypatch):
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
 
     state = {
         "vision_enabled": True,
