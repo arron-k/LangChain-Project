@@ -14,10 +14,11 @@
 6. [기능 한눈에 보기](#6-기능-한눈에-보기)
 7. [상황별 사용법 (레시피)](#7-상황별-사용법-레시피)
 8. [🤖 멀티 에이전트 모드 자세히 보기](#8--멀티-에이전트-모드-자세히-보기)
-9. [옵션 자세히 알아보기](#9-옵션-자세히-알아보기)
-10. [어떤 기술이 사용됐나요?](#10-어떤-기술이-사용됐나요)
-11. [자주 묻는 질문](#11-자주-묻는-질문)
-12. [트러블슈팅](#12-트러블슈팅)
+9. [📂 검색 소스 자세히 보기 (웹 / 사내 / 하이브리드)](#9--검색-소스-자세히-보기-웹--사내--하이브리드)
+10. [옵션 자세히 알아보기](#10-옵션-자세히-알아보기)
+11. [어떤 기술이 사용됐나요?](#11-어떤-기술이-사용됐나요)
+12. [자주 묻는 질문](#12-자주-묻는-질문)
+13. [트러블슈팅](#13-트러블슈팅)
 
 ---
 
@@ -70,6 +71,9 @@
 - **트렌드 정리** — "2025년 AI agent framework 동향"
 - **학습용 자료 수집** — "RAG vs fine-tuning"
 - **회의 / 발표 사전조사** — "최근 한국 LLM 기술 사례"
+- **🏢 사내 위키 검색** — Confluence 페이지 기반 회사 컨텍스트 보고서
+- **💬 사내 Slack 검색** — 본인이 가입한 채널의 최근 30일 메시지 기반
+- **🔀 웹+사내 통합** — 외부 트렌드와 회사 사례를 한 보고서에
 
 ### 🟡 어느 정도 가능한 것
 
@@ -130,6 +134,28 @@ uv run streamlit run ui/app.py
 
 - 토픽 입력 → 🚀 실행
 - 30초~2분 후 보고서 등장
+
+### ➕ (선택) 사내 RAG 추가 셋업
+
+회사 Confluence / Slack 검색도 켜고 싶다면 [섹션 9](#9--검색-소스-자세히-보기-웹--사내--하이브리드) 참고:
+
+```bash
+# 1. Ollama 설치 + 모델 받기 (한 번만)
+brew install ollama
+ollama pull qwen2.5vl:7b    # chat
+ollama pull all-minilm       # embedding
+
+# 2. .env에 추가
+echo "OLLAMA_BASE_URL=http://localhost:11434" >> .env
+echo "CONFLUENCE_URL=https://yourcompany.atlassian.net" >> .env
+echo "CONFLUENCE_USER=you@example.com" >> .env
+echo "CONFLUENCE_API_TOKEN=ATATT..." >> .env
+echo "SLACK_TOKEN=xoxp-..." >> .env
+
+# 3. 첫 인제스션
+ollama serve &
+uv run python scripts/ingest_internal.py --source wiki --source slack
+```
 
 ---
 
@@ -205,6 +231,22 @@ uv run streamlit run ui/app.py
 | Length          | short(<300자) / medium(600~~800) / long(1200~~1800) |
 | Sub-questions 수 | 1~6 (검색 횟수 결정)                                     |
 | Max iterations  | 1~5 (재검색 한도)                                       |
+
+
+### 📂 검색 소스 (신규)
+
+
+| 옵션              | 효과                                                              |
+| --------------- | --------------------------------------------------------------- |
+| 🌐 웹 검색만        | Tavily 검색 엔진 (기본)                                              |
+| 🏢 사내 문서만       | Confluence Wiki + Slack — Ollama 임베딩 + Chroma 벡터 DB             |
+| 🔀 웹 + 사내       | 둘 다 병렬 호출 후 정규화/가중치/dedup으로 통합                                  |
+| 활성 사내 소스        | wiki / slack 멀티셀렉트                                              |
+| 인제스션 — 변경분만     | 마지막 동기화 이후 변경된 문서만 색인 (~10초)                                    |
+| 인제스션 — 전체 재색인   | 모든 청크 삭제 + 처음부터 색인 (wiki 6분 / slack 2분)                          |
+| 마지막 동기화 일시      | 소스별 표시 (예: "5m ago")                                            |
+| 하이브리드 가중치       | 웹 vs 사내 비중 슬라이더 (0~1)                                           |
+| 출처 배지           | 🌐 (웹) / 📚 (Wiki) / 💬 (Slack) 시각적 구분                            |
 
 
 ### 🔍 검색 품질
@@ -874,7 +916,299 @@ Writer 페르소나 + 자가 교정 → 작가가 자기 글을 다시 읽고 �
 
 ---
 
-## 9. 옵션 자세히 알아보기
+## 9. 📂 검색 소스 자세히 보기 (웹 / 사내 / 하이브리드)
+
+이 시스템의 또 다른 핵심 기능입니다. **어디서 정보를 가져올지** 라디오 버튼 하나로 결정합니다. 자세히 풀어드릴게요.
+
+### 9-1. 비유로 먼저
+
+```
+🌐 웹 검색만        :  도서관 가서 "최근 출간된 책 중에서" 찾기 (외부, 최신)
+🏢 사내 문서만      :  본인 책상 서랍에서 "회사 자료" 찾기 (내부, 안전)
+🔀 웹 + 사내 (하이브리드) : 둘 다 동시에 → 합쳐서 정리 (균형)
+```
+
+| 모드 | 찾는 곳 | 강점 | 약점 |
+|---|---|---|---|
+| **🌐 웹** | Tavily 검색 엔진 (Google/Bing 같은 것) | 최신 트렌드, 외부 사례 | 회사 내부 사정 모름 |
+| **🏢 사내** | Confluence Wiki + Slack 메시지 | 회사 맥락, 보안 (외부 유출 X) | 인터넷 최신 정보 없음 |
+| **🔀 하이브리드** | 둘 다 동시에 | 회사 맥락 + 최신 트렌드 결합 | 가장 느림 (둘 다 호출) |
+
+---
+
+### 9-2. 사내 RAG가 어떻게 동작하나? (단계별)
+
+> RAG = Retrieval-Augmented Generation. "검색해서 가져온 자료로 답변을 만들어주는 방식". ChatGPT가 자기가 외운 지식만 쓰는 게 아니라, **방금 검색한 자료를 보고 답하는 것** 이라고 생각하면 됩니다.
+
+#### 1단계 — 인제스션 (Ingestion) = 자료 미리 모아두기
+
+```
+회사 Confluence 페이지 2,009개
+                ↓
+        [코드가 페이지 본문 가져옴]
+                ↓
+   본문을 작은 조각(청크)으로 자르기 (400자씩)
+                ↓
+   각 조각을 "벡터" (384개 숫자 묶음)로 변환 ← Ollama가 함
+                ↓
+   Chroma 데이터베이스에 저장 (로컬 파일)
+                ↓
+        23,365개 청크 색인 완료
+```
+
+⏱ **6분 소요** (한 번만)
+
+#### 2단계 — 검색 (Retrieval) = 필요할 때 찾기
+
+```
+사용자가 "AIDT 학습맵 설계" 토픽 입력
+                ↓
+        토픽을 동일한 방식으로 벡터로 변환
+                ↓
+   Chroma가 가장 비슷한 벡터 5개 찾음 (cosine similarity)
+                ↓
+        그 5개의 원본 본문을 LLM에게 전달
+                ↓
+        LLM이 그 본문 보고 보고서 작성
+```
+
+⏱ **수 초** (매번)
+
+#### 3단계 — 보고서 작성 (Generation)
+검색된 본문을 LLM (Gemini / Groq / Ollama)이 읽고 마크다운 보고서 작성. 출처에 Confluence 페이지 URL 그대로 인용.
+
+---
+
+### 9-3. 인제스션 vs 검색 — 헷갈리기 쉬운 점
+
+| | 인제스션 | 검색 |
+|---|---|---|
+| 언제? | 처음 1번 + 가끔 업데이트 | 매번 토픽 실행할 때 |
+| 무엇? | 회사 자료 → 벡터 변환 → 저장 | 토픽과 비슷한 자료 찾기 |
+| 비용? | LLM 호출 X, Confluence API 호출만 (느림) | Chroma 로컬 검색 (빠름) |
+| 사용자 액션? | 사이드바 "🔄 변경분만" 또는 "♻️ 전체 재색인" 클릭 | 토픽 입력 → 🚀 실행 |
+
+---
+
+### 9-4. 지원하는 사내 소스 — Wiki(Confluence)와 Slack
+
+#### 📚 Wiki (Confluence)
+
+**무엇을 가져오나**:
+- 본인이 접근 권한 있는 모든 Confluence 스페이스의 페이지
+- 페이지 본문 (HTML → 순수 텍스트로 변환)
+- 메타데이터: 페이지 제목, 스페이스 키, 마지막 수정 시각, URL
+
+**필요한 것**:
+- Atlassian API 토큰 ([발급 링크](https://id.atlassian.com/manage-profile/security/api-tokens))
+- `.env` 에 `CONFLUENCE_URL`, `CONFLUENCE_USER`, `CONFLUENCE_API_TOKEN`
+- (선택) `CONFLUENCE_SPACE_KEYS=ENG,PRD` 로 일부 스페이스만 필터링
+
+**예시 결과**:
+> 보고서 출처에 `https://yourcompany.atlassian.net/wiki/spaces/ENG/pages/12345678` 등장 → 클릭하면 원본 Confluence 페이지로 이동
+
+#### 💬 Slack
+
+**무엇을 가져오나**:
+- 본인이 가입한 채널 (whitelist로 지정)
+- 메시지 + 스레드 답글 (root + replies = 하나의 문서로 묶음)
+- 사용자 ID → 실제 이름 자동 변환 (`<@U03ABC>` → `@홍길동`)
+- 메타데이터: 채널명, 스레드 시각, 답글 수
+
+**자동 제외**:
+- DM (개인 메시지)
+- 그룹 DM
+- 봇 자동 메시지 (channel_join, bot_message)
+
+**필요한 것**:
+- Slack User OAuth Token (`xoxp-...`)
+- 권한 (스코프): `channels:history`, `channels:read`, `users:read` (선택: `groups:*`)
+- **봇 초대 불필요!** — User Token이므로 본인이 이미 멤버인 채널 자동 접근
+
+#### Jira / Notion / GitHub Wiki — 미래 작업
+같은 BaseConnector 패턴으로 30분~1시간이면 추가 가능. 후속.
+
+---
+
+### 9-5. 인제스션 자동화 — 두 모드 (변경분만 vs 전체)
+
+회사 자료는 계속 변하니까 주기적으로 색인을 다시 해야 합니다. 두 가지 방식:
+
+#### 🔄 변경분만 (Incremental) — 빠름, 일상용
+
+```
+1. sync_log에서 "마지막 동기화 시각" 조회 (예: 5시간 전)
+2. Confluence/Slack에 "그 이후 수정된 것만 줘" 요청
+3. 변경된 페이지 50개 받음
+4. Chroma에서 그 50개의 doc_id만 골라 청크 삭제
+5. 새로 청크 → 임베딩 → 저장
+6. sync_log 갱신
+```
+
+⏱ **10초~1분**. 매일/매시간 돌려도 부담 없음.
+
+#### ♻️ 전체 재색인 (Full reset) — 느림, 정합성 보장
+
+```
+1. 해당 소스의 모든 청크를 Chroma에서 삭제
+2. Confluence/Slack 처음부터 다시 가져옴
+3. 모두 재청킹 + 재임베딩 + 재저장
+```
+
+⏱ **wiki 6분 / slack 2분**. 주 1회 또는 데이터 정합성 의심될 때.
+
+#### 사이드바에서 한눈에
+```
+📚 wiki    23,365 chunks · 마지막 동기화: 5m ago
+           [🔄 변경분만]  [♻️ 전체 재색인]
+
+💬 slack       361 chunks · 마지막 동기화: 12m ago
+           [🔄 변경분만]  [♻️ 전체 재색인]
+```
+
+---
+
+### 9-6. 🔀 하이브리드 모드 — 웹 + 사내 동시 호출
+
+#### 동작 흐름
+
+```
+사용자 쿼리 "RAG 시스템 도입 사례"
+            │
+            ├─ 스레드 1 (병렬) ──→ Tavily 웹 검색  → web hits
+            │                                       │
+            └─ 스레드 2 (병렬) ──→ Chroma 사내 검색 → internal hits
+                                                    │
+            ┌───────────────────────────────────────┘
+            ▼
+     _merge() 함수
+     ① 각 소스 안에서 점수 0~1로 정규화 (min-max scaling)
+     ② 가중치 곱 (예: web 0.5 + internal 0.5)
+     ③ 소스별 최대 3개씩만 선택 (한 소스 독점 방지)
+     ④ 같은 URL 중복 제거
+     ⑤ 통합 점수로 재정렬
+            ▼
+     최종 5~6개 hits
+     [{🌐 web, ...}, {📚 wiki, ...}, {💬 slack, ...}]
+            ▼
+     LLM이 모두 보고 보고서 작성
+```
+
+#### 가중치 슬라이더 (Web vs 사내 비중)
+
+| 슬라이더 값 | 의미 | 추천 상황 |
+|---|---|---|
+| **0.0** | 사내만 (실질적으로 internal 모드) | 회사 정보만 필요 |
+| **0.3** | 사내 위주 + 웹 보조 | 회사가 정답, 웹은 보충 |
+| **0.5** | 동일 비중 (기본) | 균형 잡힌 보고서 |
+| **0.7** | 웹 위주 + 사내 보조 | 외부 트렌드 + 회사 사례 확인 |
+| **1.0** | 웹만 (실질적으로 web 모드) | 일반 리서치 |
+
+#### 결과 화면 — 출처 배지로 한눈에 구분
+```
+🔗 출처
+- 🌐 🟢 2025 https://medium.com/...     *Recent article*
+- 📚 ⚠️ 2023 https://wiki/spaces/...    *Internal design doc*
+- 💬       https://enuma.slack.com/...  *#channel: 어제 대화*
+```
+- 🌐 = Tavily 웹
+- 📚 = Confluence Wiki
+- 💬 = Slack
+- 🟢/🟡/🟠/⚠️ = 신선도 (기존)
+
+---
+
+### 9-7. Ollama가 왜 등장하나? — "데이터를 회사 밖으로 안 보내려면"
+
+#### 일반 검색 (Gemini / OpenAI 사용 시)
+```
+"사내 페이지 본문 → Gemini API (구글 서버) → 답변"
+                          ↑
+                  외부로 데이터 전송됨
+```
+이게 회사 자료라면 보안 우려가 생깁니다.
+
+#### Ollama 사용 시 (완전 로컬)
+```
+"사내 페이지 본문 → 본인 노트북의 Ollama → 답변"
+                          ↑
+                  외부 호출 0회 (air-gap 가능)
+```
+
+| 항목 | 클라우드 LLM (Gemini 등) | Ollama (로컬) |
+|---|---|---|
+| 속도 | 빠름 | 모델 크기에 따라 다름 (M1+ 충분) |
+| 한국어 품질 | Gemini ⭐⭐⭐⭐⭐ | qwen2.5 ⭐⭐⭐⭐ |
+| 데이터 외부 유출 | 있음 (서비스 약관 의존) | 없음 |
+| 비용 | 무료 한도 / 유료 | 완전 무료 |
+| 인터넷 필요 | 필요 | 불필요 |
+
+**이 시스템의 fallback 체인**: `Google Gemini → Anthropic → Groq → Ollama`
+한 곳 한도 소진하면 자동으로 다음으로 넘어감. 모두 다 실패해도 로컬 Ollama로 끝까지 동작.
+
+---
+
+### 9-8. 시나리오로 보는 사용법
+
+#### 시나리오 A — "Confluence에서 우리 회사 디자인 시스템 찾기"
+```
+📂 검색 소스: 🏢 사내 문서만
+활성 소스: 📚 wiki
+Topic: "디자인 시스템 컴포넌트 사용 가이드"
+🚀 실행
+```
+→ Confluence 페이지만 보고 보고서. 외부 호출 0회 (Tavily 안 씀).
+
+#### 시나리오 B — "Slack에서 최근 배포 이슈 정리"
+```
+📂 검색 소스: 🏢 사내 문서만
+활성 소스: 💬 slack
+Topic: "지난주 배포 관련 이슈와 대응"
+🚀 실행
+```
+→ 본인이 가입한 채널의 스레드 검색.
+
+#### 시나리오 C — "Notion 같은 외부 트렌드 + 회사 사례 비교"
+```
+📂 검색 소스: 🔀 웹 + 사내
+활성 소스: 📚 wiki + 💬 slack
+비중: 0.6 (웹 약간 더)
+Topic: "AI agent 도입 사례 비교 (외부 vs 우리 회사)"
+🚀 실행
+```
+→ Medium/블로그 글 + 회사 내부 자료 통합 보고서.
+
+#### 시나리오 D — "주간 트렌드 모니터링 (매일 자동 업데이트)"
+```
+매일 아침: 
+  사이드바 wiki 🔄 변경분만 클릭 (10초)
+  사이드바 slack 🔄 변경분만 클릭 (10초)
+
+리서치할 때:
+  검색 소스: 🔀 하이브리드, 토픽 입력, 🚀
+```
+
+---
+
+### 9-9. 한계와 솔직한 평가
+
+| 한계 | 이유 | 회피 |
+|---|---|---|
+| 한국어 검색 점수가 영어보다 낮음 | all-minilm 임베딩이 영어 위주 | 한국어 임베딩 모델로 교체 (예: ko-sroberta) |
+| 첫 인제스션 느림 (wiki 6분) | 2,000페이지 × 임베딩 | 1회만 함. 이후 변경분만 |
+| Slack 검색 정확도 < Wiki | 메시지가 짧고 맥락 부족 | 스레드 단위 묶음 (이미 적용) |
+| 인덱싱된 후 삭제된 페이지 자동 제거 안 됨 | Incremental은 변경/추가만 반영 | 가끔 ♻️ 전체 재색인 |
+| Ollama 사용 시 보고서 품질 < Gemini | 7B 모델 한계 | Gemini 한도 살아있으면 자동 우선 사용 |
+
+---
+
+### 9-10. 한 줄 요약
+
+> **검색 소스 라디오는 "AI가 어디서 정보를 길어 올지" 결정합니다. 웹만 / 사내만 / 둘 다 — 세 가지 모드를 토글 한 번으로 전환할 수 있고, 사내 모드는 Ollama 로컬 임베딩 + Chroma 벡터 DB + Confluence/Slack 커넥터로 데이터를 외부로 보내지 않고도 똑똑한 검색이 가능합니다.**
+
+---
+
+## 10. 옵션 자세히 알아보기
 
 각 토글이 무엇을 하는지 평이한 언어로 풀이.
 
@@ -1016,7 +1350,7 @@ Multi:   Supervisor가 매번 routing
 
 ---
 
-## 10. 어떤 기술이 사용됐나요?
+## 11. 어떤 기술이 사용됐나요?
 
 비유로 풀어드립니다.
 
@@ -1100,7 +1434,64 @@ Multi:   Supervisor가 매번 routing
 
 ---
 
-## 11. 자주 묻는 질문
+### 🦙 Ollama — 로컬 LLM / 임베딩 서버
+
+> "본인 노트북에서 직접 돌리는 AI 모델 서버"
+
+비유: 클라우드 LLM이 "전화로 외부 상담사에게 묻는 것"이라면, Ollama는 "내 책상 위 AI 비서". 외부 통신 없음.
+
+- 우리 시스템 용도 2가지:
+  1. **Chat fallback** — Gemini / Anthropic / Groq 한도 소진 시 자동 전환
+  2. **Embedding** — 사내 문서를 벡터로 변환 (외부 전송 0)
+- 사용 모델: `qwen2.5vl:7b` (chat), `all-minilm` (embedding 384차원)
+- 설치: `brew install ollama && ollama pull qwen2.5vl:7b && ollama pull all-minilm`
+- 서버: `ollama serve` (port 11434)
+
+### 🎨 Chroma — 로컬 벡터 데이터베이스
+
+> "비슷한 의미의 문서를 빠르게 찾아주는 DB"
+
+비유: 일반 DB는 "이름 == '홍길동'" 같은 정확 매칭. 벡터 DB는 "이 질문이랑 의미가 비슷한 문서 5개" 같은 의미 매칭.
+
+- 우리 시스템: `./internal_chroma/` 폴더에 저장 (별도 서버 불필요, 임베디드)
+- 각 문서를 384차원 벡터로 저장 → 쿼리도 벡터로 변환 → cosine similarity로 top-K 검색
+- 메타데이터 필터: `source: wiki|slack` 으로 소스별 검색 가능
+
+### 📚 Confluence (atlassian-python-api) — 사내 위키 커넥터
+
+> "Atlassian Cloud의 페이지를 가져오는 클라이언트"
+
+- API: `get_all_spaces`, `get_all_pages_from_space` (REST)
+- 인증: API Token (https://id.atlassian.com/manage-profile/security/api-tokens)
+- 본문 처리: HTML storage view → BeautifulSoup으로 텍스트 추출
+- 증분 동기화: `version.when` 필드로 변경 시각 비교
+
+### 💬 Slack SDK (slack-sdk) — 사내 메시지 커넥터
+
+> "Slack의 채널/스레드/사용자를 가져오는 클라이언트"
+
+- API: `conversations.list`, `conversations.history`, `conversations.replies`, `users.list`
+- 인증: **User OAuth Token** (`xoxp-...`) 권장 — 봇 초대 불필요
+- 단위: 스레드 (root + replies = 1 문서)
+- 안전 장치: DM/MPIM 자동 제외, 봇 메시지 skip, rate-limit 내장 retry
+
+### 🔗 BeautifulSoup + RecursiveCharacterTextSplitter
+
+> "HTML 정제 + 긴 텍스트를 적절히 자르는 도구들"
+
+- BeautifulSoup: Confluence HTML → 순수 텍스트 (script/style 제거)
+- TextSplitter: 긴 문서를 400자 청크로 분할 (40자 overlap)
+
+### 🔄 sync_log (SQLite) — 소스별 동기화 메타데이터
+
+> "마지막에 언제 무엇을 색인했는지 기록하는 작은 가계부"
+
+- 컬럼: `source, last_synced_at, docs, chunks, elapsed_sec, last_error`
+- 사용처: UI에 "5m ago" 표시 + Incremental 모드의 cutoff 시각
+
+---
+
+## 12. 자주 묻는 질문
 
 ### ❓ "사용 비용은 얼마나?"
 
@@ -1110,7 +1501,30 @@ Multi:   Supervisor가 매번 routing
 
 ### ❓ "내 회사 자료 검색에도 쓸 수 있나?"
 
-지금은 인터넷 검색만. 사내 문서 통합은 **RAG hybrid** 확장이 필요 (`H1` 작업 — 미구현).
+**네, 됩니다.** Confluence Wiki + Slack 메시지를 지원합니다 ([섹션 9](#9--검색-소스-자세히-보기-웹--사내--하이브리드) 참고).
+- `.env`에 API 토큰 입력 (Atlassian + Slack User Token)
+- CLI 한 번 실행: `uv run python scripts/ingest_internal.py --source wiki --source slack`
+- 사이드바 📂 검색 소스 → 🏢 사내 문서만 또는 🔀 하이브리드 선택
+- **임베딩은 Ollama 로컬** → 데이터 외부 전송 0회 가능
+- Jira / Notion / GitHub Wiki는 같은 패턴으로 30분 내 추가 가능 (후속 작업)
+
+### ❓ "사내 자료 색인은 얼마나 자주 해야 하나?"
+
+두 가지 방식 — 사이드바 인제스션 상태 패널의 두 버튼:
+
+- **🔄 변경분만 (Incremental)**: 매일 또는 매시간 부담 없이 (~10초)
+- **♻️ 전체 재색인 (Full reset)**: 주 1회 또는 데이터 정합성 의심될 때 (wiki 6분 / slack 2분)
+
+### ❓ "Ollama 꼭 설치해야 하나요?"
+
+**아니요, 옵션입니다.** 두 경우에 권장:
+
+1. **데이터 보안** — 사내 문서를 외부 LLM (Gemini 등)에 보내기 싫을 때
+2. **무료 무제한** — API 한도 걱정 없이 무제한 사용
+
+설치: `brew install ollama && ollama pull qwen2.5vl:7b && ollama pull all-minilm`
+
+설치 안 해도 외부 LLM (Gemini/Anthropic/Groq) 만으로 웹 검색 + 보고서 작성 가능. 단, 사내 RAG 모드에는 임베딩이 필요하므로 Ollama 또는 다른 임베딩 서비스가 있어야 함.
 
 ### ❓ "보고서가 가끔 이상해요"
 
@@ -1161,7 +1575,7 @@ LLM이 모든 답을 다 잘하진 않습니다. 다음을 시도:
 
 ---
 
-## 12. 트러블슈팅
+## 13. 트러블슈팅
 
 ### 🚨 "RESOURCE_EXHAUSTED" / 429 에러
 
@@ -1258,4 +1672,4 @@ LLM이 모든 답을 다 잘하진 않습니다. 다음을 시도:
 
 ---
 
-*Last updated: 2026-05-08 | 121 tests · 12 quality features (R1-R12) · 4 categories (A/B/C/D) complete*
+*Last updated: 2026-05-11 | 164 tests · 12 quality features (R1-R12) · 4 categories (A/B/C/D) complete · Internal RAG (Confluence + Slack) + Ollama + Hybrid search 🆕*
